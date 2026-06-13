@@ -2,13 +2,10 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>タッチザナンバー</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Arial', sans-serif;
@@ -19,55 +16,64 @@
       justify-content: center;
       min-height: 100vh;
       color: white;
+      padding: 16px;
     }
 
     h1 {
-      font-size: 2rem;
-      margin-bottom: 16px;
+      font-size: 1.8rem;
+      margin-bottom: 12px;
       letter-spacing: 2px;
       color: #e0e0ff;
     }
 
+    /* 難易度選択 */
+    #difficulty {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .diff-btn {
+      padding: 8px 20px;
+      font-size: 1rem;
+      border: 2px solid #0f3460;
+      border-radius: 8px;
+      background: #16213e;
+      color: #a0c4ff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .diff-btn:hover { background: #0f3460; }
+
+    .diff-btn.active {
+      background: #e94560;
+      border-color: #e94560;
+      color: white;
+    }
+
+    /* タイマー・次の数字 */
     #info {
       display: flex;
-      gap: 40px;
-      margin-bottom: 20px;
-      font-size: 1.2rem;
+      gap: 32px;
+      margin-bottom: 16px;
+      font-size: 1.1rem;
     }
 
-    #timer {
-      color: #f0c040;
-      font-weight: bold;
-      font-size: 1.6rem;
-    }
+    #timer { color: #f0c040; font-weight: bold; font-size: 1.5rem; }
+    #next-label { color: #a0c4ff; }
+    #next-num { font-weight: bold; color: #ff9f9f; font-size: 1.5rem; }
 
-    #next-label {
-      color: #a0c4ff;
-    }
-
-    #next-num {
-      font-weight: bold;
-      color: #ff9f9f;
-      font-size: 1.6rem;
-    }
-
-    #grid {
-      display: grid;
-      grid-template-columns: repeat(5, 100px);
-      grid-template-rows: repeat(5, 100px);
-      gap: 8px;
-    }
+    /* グリッド */
+    #grid { display: grid; gap: 6px; }
 
     .cell {
-      width: 100px;
-      height: 100px;
       background: #16213e;
       border: 2px solid #0f3460;
-      border-radius: 12px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.8rem;
       font-weight: bold;
       cursor: pointer;
       transition: background 0.15s, transform 0.1s;
@@ -75,10 +81,7 @@
       color: #e0e0ff;
     }
 
-    .cell:hover {
-      background: #0f3460;
-      transform: scale(1.05);
-    }
+    .cell:hover { background: #0f3460; transform: scale(1.05); }
 
     .cell.done {
       background: #2d6a4f;
@@ -100,16 +103,17 @@
     }
 
     #message {
-      margin-top: 24px;
-      font-size: 1.4rem;
+      margin-top: 16px;
+      font-size: 1.3rem;
       color: #f0c040;
       height: 2rem;
+      text-align: center;
     }
 
     #start-btn {
-      margin-top: 20px;
-      padding: 12px 40px;
-      font-size: 1.2rem;
+      margin-top: 12px;
+      padding: 10px 36px;
+      font-size: 1.1rem;
       background: #e94560;
       color: white;
       border: none;
@@ -118,19 +122,51 @@
       transition: background 0.2s;
     }
 
-    #start-btn:hover {
-      background: #c73652;
+    #start-btn:hover { background: #c73652; }
+
+    /* ランキング */
+    #ranking {
+      margin-top: 20px;
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 12px;
+      padding: 14px 24px;
+      min-width: 260px;
     }
 
-    #best {
-      margin-top: 12px;
-      color: #a0c4ff;
+    #ranking h2 {
       font-size: 1rem;
+      color: #a0c4ff;
+      margin-bottom: 10px;
+      text-align: center;
+      letter-spacing: 1px;
     }
+
+    #ranking ol {
+      padding-left: 20px;
+    }
+
+    #ranking li {
+      font-size: 1rem;
+      color: #e0e0ff;
+      padding: 3px 0;
+    }
+
+    #ranking li:first-child { color: #f0c040; font-weight: bold; }
+    #ranking li:nth-child(2) { color: #c0c0c0; }
+    #ranking li:nth-child(3) { color: #cd7f32; }
+
+    .no-record { color: #555; font-size: 0.9rem; text-align: center; }
   </style>
 </head>
 <body>
   <h1>タッチザナンバー</h1>
+
+  <div id="difficulty">
+    <button class="diff-btn" onclick="setDifficulty('easy')">かんたん<br><small>3×3</small></button>
+    <button class="diff-btn" onclick="setDifficulty('normal')">ふつう<br><small>4×4</small></button>
+    <button class="diff-btn active" onclick="setDifficulty('hard')">むずかしい<br><small>5×5</small></button>
+  </div>
 
   <div id="info">
     <div>タイム：<span id="timer">0.00</span> 秒</div>
@@ -141,13 +177,16 @@
 
   <div id="message">スタートボタンを押してください</div>
   <button id="start-btn" onclick="startGame()">スタート</button>
-  <div id="best">ベストタイム：--</div>
+
+  <div id="ranking">
+    <h2>ランキング</h2>
+    <ol id="ranking-list"></ol>
+  </div>
 
   <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function playHit(index) {
-      // 数字が進むごとに音程が少し上がる
       const freq = 440 + index * 18;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -191,11 +230,26 @@
       });
     }
 
+    const DIFFICULTIES = {
+      easy:   { size: 3, cellPx: 110, fontSize: '2rem' },
+      normal: { size: 4, cellPx: 95,  fontSize: '1.8rem' },
+      hard:   { size: 5, cellPx: 85,  fontSize: '1.6rem' },
+    };
+
+    let currentDiff = 'hard';
     let nextNumber = 1;
     let startTime = null;
     let timerInterval = null;
-    let bestTime = null;
     let gameActive = false;
+
+    function setDifficulty(diff) {
+      if (gameActive) return;
+      currentDiff = diff;
+      document.querySelectorAll('.diff-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', ['easy', 'normal', 'hard'][i] === diff);
+      });
+      updateRanking();
+    }
 
     function shuffle(arr) {
       for (let i = arr.length - 1; i > 0; i--) {
@@ -206,12 +260,20 @@
     }
 
     function buildGrid() {
+      const { size, cellPx, fontSize } = DIFFICULTIES[currentDiff];
+      const total = size * size;
       const grid = document.getElementById('grid');
+      grid.style.gridTemplateColumns = `repeat(${size}, ${cellPx}px)`;
+      grid.style.gridTemplateRows = `repeat(${size}, ${cellPx}px)`;
       grid.innerHTML = '';
-      const numbers = shuffle([...Array(25)].map((_, i) => i + 1));
+
+      const numbers = shuffle([...Array(total)].map((_, i) => i + 1));
       numbers.forEach(n => {
         const cell = document.createElement('div');
         cell.className = 'cell';
+        cell.style.width = cellPx + 'px';
+        cell.style.height = cellPx + 'px';
+        cell.style.fontSize = fontSize;
         cell.textContent = n;
         cell.dataset.num = n;
         cell.addEventListener('click', () => onCellClick(cell, n));
@@ -221,17 +283,14 @@
 
     function onCellClick(cell, num) {
       if (!gameActive) return;
+      const total = DIFFICULTIES[currentDiff].size ** 2;
 
       if (num === nextNumber) {
         cell.classList.add('done');
-        cell.removeEventListener('click', () => onCellClick(cell, num));
         playHit(nextNumber);
         nextNumber++;
-        document.getElementById('next-num').textContent = nextNumber <= 25 ? nextNumber : '完了！';
-
-        if (nextNumber > 25) {
-          finishGame();
-        }
+        document.getElementById('next-num').textContent = nextNumber <= total ? nextNumber : '完了！';
+        if (nextNumber > total) finishGame();
       } else {
         playWrong();
         cell.classList.add('wrong');
@@ -243,33 +302,68 @@
       clearInterval(timerInterval);
       nextNumber = 1;
       gameActive = true;
+      const total = DIFFICULTIES[currentDiff].size ** 2;
       document.getElementById('next-num').textContent = '1';
-      document.getElementById('message').textContent = '1 から順番にクリック！';
+      document.getElementById('message').textContent = '1 から順番にタップ！';
       document.getElementById('timer').textContent = '0.00';
       buildGrid();
 
       startTime = Date.now();
       timerInterval = setInterval(() => {
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-        document.getElementById('timer').textContent = elapsed;
+        document.getElementById('timer').textContent =
+          ((Date.now() - startTime) / 1000).toFixed(2);
       }, 50);
     }
 
     function finishGame() {
       clearInterval(timerInterval);
       gameActive = false;
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-      document.getElementById('timer').textContent = elapsed;
-
+      const elapsed = parseFloat(((Date.now() - startTime) / 1000).toFixed(2));
+      document.getElementById('timer').textContent = elapsed.toFixed(2);
       playFinish();
-      if (bestTime === null || parseFloat(elapsed) < bestTime) {
-        bestTime = parseFloat(elapsed);
-        document.getElementById('best').textContent = `ベストタイム：${bestTime} 秒 🎉`;
-        document.getElementById('message').textContent = `クリア！新記録 ${elapsed} 秒！`;
+
+      saveRecord(elapsed);
+      const best = getRanking()[0];
+      if (elapsed === best) {
+        document.getElementById('message').textContent = `クリア！新記録 ${elapsed} 秒！🎉`;
       } else {
-        document.getElementById('message').textContent = `クリア！${elapsed} 秒（ベスト：${bestTime} 秒）`;
+        document.getElementById('message').textContent = `クリア！${elapsed} 秒（ベスト：${best} 秒）`;
       }
+      updateRanking();
     }
+
+    // ローカルストレージ操作
+    function storageKey() { return `ttn_ranking_${currentDiff}`; }
+
+    function getRanking() {
+      return JSON.parse(localStorage.getItem(storageKey()) || '[]');
+    }
+
+    function saveRecord(time) {
+      const records = getRanking();
+      records.push(time);
+      records.sort((a, b) => a - b);
+      localStorage.setItem(storageKey(), JSON.stringify(records.slice(0, 5)));
+    }
+
+    function updateRanking() {
+      const records = getRanking();
+      const list = document.getElementById('ranking-list');
+      const labels = { easy: 'かんたん', normal: 'ふつう', hard: 'むずかしい' };
+      document.querySelector('#ranking h2').textContent =
+        `ランキング（${labels[currentDiff]}）`;
+
+      if (records.length === 0) {
+        list.innerHTML = '<p class="no-record">まだ記録がありません</p>';
+        return;
+      }
+      list.innerHTML = records
+        .map((t, i) => `<li>${i + 1}位　${t.toFixed(2)} 秒</li>`)
+        .join('');
+    }
+
+    // 初期化
+    updateRanking();
   </script>
 </body>
 </html>
