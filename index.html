@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>タッチザナンバー</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: white;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 16px;
+      letter-spacing: 2px;
+      color: #e0e0ff;
+    }
+
+    #info {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 20px;
+      font-size: 1.2rem;
+    }
+
+    #timer {
+      color: #f0c040;
+      font-weight: bold;
+      font-size: 1.6rem;
+    }
+
+    #next-label {
+      color: #a0c4ff;
+    }
+
+    #next-num {
+      font-weight: bold;
+      color: #ff9f9f;
+      font-size: 1.6rem;
+    }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(5, 100px);
+      grid-template-rows: repeat(5, 100px);
+      gap: 8px;
+    }
+
+    .cell {
+      width: 100px;
+      height: 100px;
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      user-select: none;
+      color: #e0e0ff;
+    }
+
+    .cell:hover {
+      background: #0f3460;
+      transform: scale(1.05);
+    }
+
+    .cell.done {
+      background: #2d6a4f;
+      border-color: #52b788;
+      color: #b7e4c7;
+      cursor: default;
+      transform: none;
+    }
+
+    .cell.wrong {
+      background: #7b2d2d;
+      animation: shake 0.3s;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    #message {
+      margin-top: 24px;
+      font-size: 1.4rem;
+      color: #f0c040;
+      height: 2rem;
+    }
+
+    #start-btn {
+      margin-top: 20px;
+      padding: 12px 40px;
+      font-size: 1.2rem;
+      background: #e94560;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #start-btn:hover {
+      background: #c73652;
+    }
+
+    #best {
+      margin-top: 12px;
+      color: #a0c4ff;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>タッチザナンバー</h1>
+
+  <div id="info">
+    <div>タイム：<span id="timer">0.00</span> 秒</div>
+    <div id="next-label">次の数字：<span id="next-num">1</span></div>
+  </div>
+
+  <div id="grid"></div>
+
+  <div id="message">スタートボタンを押してください</div>
+  <button id="start-btn" onclick="startGame()">スタート</button>
+  <div id="best">ベストタイム：--</div>
+
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playHit(index) {
+      // 数字が進むごとに音程が少し上がる
+      const freq = 440 + index * 18;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.18);
+    }
+
+    function playWrong() {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
+    }
+
+    function playFinish() {
+      const notes = [523, 659, 784, 1047];
+      notes.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.12);
+        gain.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.12);
+        gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + i * 0.12 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.12 + 0.3);
+        osc.start(audioCtx.currentTime + i * 0.12);
+        osc.stop(audioCtx.currentTime + i * 0.12 + 0.3);
+      });
+    }
+
+    let nextNumber = 1;
+    let startTime = null;
+    let timerInterval = null;
+    let bestTime = null;
+    let gameActive = false;
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function buildGrid() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      const numbers = shuffle([...Array(25)].map((_, i) => i + 1));
+      numbers.forEach(n => {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.textContent = n;
+        cell.dataset.num = n;
+        cell.addEventListener('click', () => onCellClick(cell, n));
+        grid.appendChild(cell);
+      });
+    }
+
+    function onCellClick(cell, num) {
+      if (!gameActive) return;
+
+      if (num === nextNumber) {
+        cell.classList.add('done');
+        cell.removeEventListener('click', () => onCellClick(cell, num));
+        playHit(nextNumber);
+        nextNumber++;
+        document.getElementById('next-num').textContent = nextNumber <= 25 ? nextNumber : '完了！';
+
+        if (nextNumber > 25) {
+          finishGame();
+        }
+      } else {
+        playWrong();
+        cell.classList.add('wrong');
+        setTimeout(() => cell.classList.remove('wrong'), 300);
+      }
+    }
+
+    function startGame() {
+      clearInterval(timerInterval);
+      nextNumber = 1;
+      gameActive = true;
+      document.getElementById('next-num').textContent = '1';
+      document.getElementById('message').textContent = '1 から順番にクリック！';
+      document.getElementById('timer').textContent = '0.00';
+      buildGrid();
+
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+        document.getElementById('timer').textContent = elapsed;
+      }, 50);
+    }
+
+    function finishGame() {
+      clearInterval(timerInterval);
+      gameActive = false;
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+      document.getElementById('timer').textContent = elapsed;
+
+      playFinish();
+      if (bestTime === null || parseFloat(elapsed) < bestTime) {
+        bestTime = parseFloat(elapsed);
+        document.getElementById('best').textContent = `ベストタイム：${bestTime} 秒 🎉`;
+        document.getElementById('message').textContent = `クリア！新記録 ${elapsed} 秒！`;
+      } else {
+        document.getElementById('message').textContent = `クリア！${elapsed} 秒（ベスト：${bestTime} 秒）`;
+      }
+    }
+  </script>
+</body>
+</html>
