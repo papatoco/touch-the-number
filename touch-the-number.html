@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>タッチザナンバー</title>
+  <style>
+    * {
+      margin: 0; padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── ヘッダー ── */
+    #header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.05);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      flex-shrink: 0;
+      gap: 10px;
+    }
+    #title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      color: #e94560;
+      flex-shrink: 0;
+    }
+
+    /* サウンドコントロール */
+    #sound-controls {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .sound-btn {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.06);
+      font-size: 15px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s, border-color .15s;
+      color: #fff;
+      position: relative;
+    }
+    .sound-btn.off {
+      opacity: 0.4;
+      border-color: rgba(255,255,255,0.1);
+    }
+    .sound-btn:hover { background: rgba(255,255,255,0.12); }
+
+    #scores {
+      display: flex;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    .score-item { display: flex; flex-direction: column; align-items: center; }
+    .score-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+    .score-value { font-size: 15px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+    #best-value { color: #ffd700; }
+
+    /* ── ステータスバー ── */
+    #status-bar {
+      display: flex;
+      align-items: center;
+      padding: 7px 14px;
+      background: rgba(255,255,255,0.03);
+      flex-shrink: 0;
+      gap: 8px;
+    }
+    #next-label { font-size: 12px; color: #888; }
+    #next-number { font-size: 21px; font-weight: 900; color: #e94560; min-width: 34px; text-align: center; }
+    #progress-bar-wrap {
+      flex: 1; height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+    }
+    #progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #e94560, #ff9f43);
+      border-radius: 3px;
+      width: 0%;
+      transition: width .2s ease;
+    }
+
+    /* ── プレイエリア ── */
+    #play-area { flex: 1; position: relative; overflow: hidden; }
+
+    /* ── 数字ボタン ── */
+    .num-btn {
+      position: absolute;
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: none;
+      font-size: 18px; font-weight: 900;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #16213e, #0f3460);
+      color: #c8d6e5;
+      box-shadow: 0 4px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.1);
+      touch-action: manipulation;
+      transition: transform .1s, box-shadow .1s;
+    }
+    .num-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 20px rgba(233,69,96,.3), inset 0 1px 0 rgba(255,255,255,.15);
+    }
+    .num-btn:active { transform: scale(.94); }
+    .num-btn.wrong {
+      animation: shake .35s ease;
+      background: linear-gradient(135deg, #5c0011, #8b0000) !important;
+      color: #ff6b6b !important;
+    }
+    .num-btn.correct { animation: pop-out .3s ease forwards; }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-8px) rotate(-3deg); }
+      40%      { transform: translateX( 8px) rotate( 3deg); }
+      60%      { transform: translateX(-5px) rotate(-2deg); }
+      80%      { transform: translateX( 5px) rotate( 2deg); }
+    }
+    @keyframes pop-out {
+      0%   { transform: scale(1);   opacity: 1; }
+      50%  { transform: scale(1.4); opacity: .8; }
+      100% { transform: scale(0);   opacity: 0; }
+    }
+
+    /* ── オーバーレイ ── */
+    #overlay {
+      position: absolute; inset: 0;
+      background: rgba(26,26,46,.93);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 18px;
+      backdrop-filter: blur(4px);
+      transition: opacity .3s;
+      z-index: 30;
+    }
+    #overlay.hidden { opacity: 0; pointer-events: none; }
+    #overlay-title { font-size: 28px; font-weight: 900; color: #e94560; letter-spacing: .05em; }
+    #overlay-result {
+      font-size: 15px; color: #aaa;
+      text-align: center; line-height: 1.8; min-height: 50px;
+    }
+    #overlay-result .result-time {
+      font-size: 40px; font-weight: 900; color: #fff; display: block;
+    }
+    #overlay-result .new-best { color: #ffd700; font-size: 15px; font-weight: 700; }
+
+    .btn-group { display: flex; gap: 10px; }
+    .group-label { font-size: 11px; color: #666; text-align: center; letter-spacing: .05em; text-transform: uppercase; }
+
+    .sel-btn {
+      padding: 8px 18px;
+      border-radius: 20px;
+      border: 2px solid rgba(255,255,255,.2);
+      background: transparent;
+      color: #aaa;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .sel-btn.active {
+      border-color: #e94560;
+      color: #e94560;
+      background: rgba(233,69,96,.1);
+    }
+
+    #start-btn {
+      padding: 14px 48px;
+      font-size: 18px; font-weight: 800;
+      background: linear-gradient(135deg, #e94560, #c0392b);
+      color: #fff;
+      border: none; border-radius: 50px;
+      cursor: pointer;
+      letter-spacing: .08em;
+      box-shadow: 0 6px 24px rgba(233,69,96,.5);
+      transition: transform .1s, box-shadow .1s, opacity .2s;
+    }
+    #start-btn:hover  { transform: scale(1.05); box-shadow: 0 8px 30px rgba(233,69,96,.65); }
+    #start-btn:active { transform: scale(.97); }
+    #start-btn:disabled { opacity: .5; cursor: default; transform: none; }
+
+    /* カウントダウン */
+    #countdown {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 100px; font-weight: 900;
+      color: #e94560;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 20;
+    }
+    #countdown.show { animation: count-anim .7s ease-out forwards; }
+    @keyframes count-anim {
+      0%   { opacity: 1; transform: scale(1.5); }
+      100% { opacity: 0; transform: scale(.5); }
+    }
+
+    /* 正解エフェクト */
+    .hit-effect {
+      position: absolute;
+      pointer-events: none;
+      font-size: 20px; font-weight: 900;
+      color: #ffd700;
+      animation: float-up .6s ease forwards;
+      z-index: 25;
+    }
+    @keyframes float-up {
+      0%   { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div id="title">タッチザナンバー</div>
+  <div id="sound-controls">
+    <button class="sound-btn" id="sfx-btn" title="効果音 ON/OFF">🔊</button>
+    <button class="sound-btn off" id="bgm-btn" title="BGM ON/OFF">🎵</button>
+  </div>
+  <div id="scores">
+    <div class="score-item">
+      <span class="score-label">タイム</span>
+      <span class="score-value" id="timer-display">0.00</span>
+    </div>
+    <div class="score-item">
+      <span class="score-label">ベスト</span>
+      <span class="score-value" id="best-value">--</span>
+    </div>
+  </div>
+</div>
+
+<div id="status-bar">
+  <span id="next-label">次:</span>
+  <span id="next-number">1</span>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+</div>
+
+<div id="play-area">
+  <div id="countdown"></div>
+
+  <div id="overlay">
+    <div id="overlay-title">タッチザナンバー</div>
+    <div id="overlay-result">1から順番にタップ！</div>
+
+    <div>
+      <div class="group-label" style="margin-bottom:6px">モード</div>
+      <div class="btn-group" id="mode-select">
+        <button class="sel-btn active" data-count="16">4×4</button>
+        <button class="sel-btn" data-count="25">5×5</button>
+        <button class="sel-btn" data-count="36">6×6</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="group-label" style="margin-bottom:6px">配置</div>
+      <div class="btn-group" id="layout-select">
+        <button class="sel-btn active" data-layout="grid">グリッド</button>
+        <button class="sel-btn" data-layout="random">ランダム</button>
+      </div>
+    </div>
+
+    <button id="start-btn">スタート</button>
+  </div>
+</div>
+
+<script>
+// ── DOM refs ──────────────────────────────────────────────
+const playArea      = document.getElementById('play-area');
+const overlay       = document.getElementById('overlay');
+const overlayTitle  = document.getElementById('overlay-title');
+const overlayResult = document.getElementById('overlay-result');
+const startBtn      = document.getElementById('start-btn');
+const nextNumber    = document.getElementById('next-number');
+const progressBar   = document.getElementById('progress-bar');
+const timerDisplay  = document.getElementById('timer-display');
+const bestValue     = document.getElementById('best-value');
+const countdownEl   = document.getElementById('countdown');
+const sfxBtn        = document.getElementById('sfx-btn');
+const bgmBtn        = document.getElementById('bgm-btn');
+
+// ── 状態 ────────────────────────────────────────────────
+let totalCount = 16;
+let layoutMode = 'grid';
+let current    = 1;
+let startTime  = null;
+let timerRAF   = null;
+let playing    = false;
+let starting   = false;
+let sfxOn      = true;
+let bests      = { 16: null, 25: null, 36: null };
+
+// ══════════════════════════════════════════════════════════
+// ── Web Audio ─────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+let sharedCtx = null;
+function getCtx() {
+  if (!sharedCtx) sharedCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return sharedCtx;
+}
+// ユーザー操作内で呼ぶ: resume() Promise を await してから音をスケジュールする
+async function ensureAudio() {
+  const ctx = getCtx();
+  if (ctx.state !== 'running') await ctx.resume();
+  return ctx;
+}
+
+// ── SFX ──────────────────────────────────────────────────
+function beep(freq, dur, type = 'sine', vol = 0.25, delay = 0) {
+  if (!sfxOn) return;
+  const ctx = getCtx();
+  if (ctx.state !== 'running') return; // ensureAudio 前は無視
+  try {
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type; osc.frequency.value = freq;
+    const t = ctx.currentTime + delay;
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.start(t); osc.stop(t + dur + 0.01);
+  } catch(e) { console.warn('SFX error:', e); }
+}
+
+const sfx = {
+  correct : () => beep(880, 0.08, 'sine',     0.28),
+  wrong   : () => beep(160, 0.18, 'sawtooth', 0.15),
+  tick    : () => beep(440, 0.10, 'sine',     0.18),
+  go      : () => { beep(660, 0.10, 'sine', 0.25); beep(990, 0.15, 'sine', 0.28, 0.10); },
+  finish  : () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.18, 'sine', 0.28, i * 0.10)),
+};
+
+sfxBtn.addEventListener('click', async () => {
+  await ensureAudio(); // AudioContext を確実に running にしてからトグル
+  sfxOn = !sfxOn;
+  sfxBtn.textContent = sfxOn ? '🔊' : '🔇';
+  sfxBtn.classList.toggle('off', !sfxOn);
+});
+
+// ── BGM ──────────────────────────────────────────────────
+// C-G-Am-F ループ (120 BPM, 16拍 = 8秒)
+const BGM = (() => {
+  const TEMPO   = 120;
+  const S       = 60 / TEMPO;       // 1拍 = 0.5秒
+  const LOOP    = 16 * S;           // ループ長 = 8秒
+  const AHEAD   = 0.3;              // 先読みマージン(秒)
+
+  // 音程定数 (Hz)
+  const C3=130.81, F3=174.61, G3=196.00, A3=220.00;
+  const C4=261.63,            E4=329.63, F4=349.23, G4=392.00, A4=440.00, B4=493.88;
+  const C5=523.25, D5=587.33, E5=659.25, F5=698.46, G5=783.99, A5=880.00;
+
+  // [freq, startBeat, durBeats]
+  const MELODY = [
+    [E5,0,.45],[G5,.5,.45],[E5,1,.45],[C5,1.5,.45],
+    [D5,2,.45],[E5,2.5,.45],[G5,3,.45],[E5,3.5,.45],
+    [D5,4,.45],[G5,4.5,.45],[B4,5,.45],[D5,5.5,.45],
+    [G4,6,.45],[B4,6.5,.45],[D5,7,.45],[B4,7.5,.45],
+    [A4,8,.45],[C5,8.5,.45],[E5,9,.45],[A5,9.5,.45],
+    [G5,10,.45],[E5,10.5,.45],[C5,11,.45],[A4,11.5,.45],
+    [F4,12,.45],[A4,12.5,.45],[C5,13,.45],[F5,13.5,.45],
+    [E5,14,.45],[C5,14.5,.45],[A4,15,.45],[F4,15.5,.45],
+  ];
+  const BASS = [
+    [C3,0,1.8],[C3,2,1.8],
+    [G3,4,1.8],[G3,6,1.8],
+    [A3,8,1.8],[A3,10,1.8],
+    [F3,12,1.8],[F3,14,1.8],
+  ];
+  const CHORDS = [            // [notes[], startBeat, durBeats]
+    [[C4,E4,G4], 0,  3.8],
+    [[G4,B4,D5], 4,  3.8],
+    [[A4,C5,E5], 8,  3.8],
+    [[F4,A4,C5], 12, 3.8],
+  ];
+
+  let master = null;
+  let loopAt = 0;
+  let timer  = null;
+  let on     = false;
+
+  function noteAt(freq, beat, dur, type, vol) {
+    const ctx = getCtx();
+    const t   = loopAt + beat * S;
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = type; osc.frequency.value = freq;
+    osc.connect(g); g.connect(master);
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur * S - 0.02);
+    osc.start(t); osc.stop(t + dur * S);
+  }
+
+  function scheduleLoop() {
+    MELODY.forEach(([f,b,d])       => noteAt(f, b, d, 'square',   0.052));
+    BASS.forEach(  ([f,b,d])       => noteAt(f, b, d, 'sine',     0.08));
+    CHORDS.forEach(([ns,b,d])      => ns.forEach(f => noteAt(f, b, d, 'triangle', 0.030)));
+
+    loopAt += LOOP;
+    const delay = (loopAt - getCtx().currentTime - AHEAD) * 1000;
+    timer = setTimeout(() => { if (on) scheduleLoop(); }, Math.max(50, delay));
+  }
+
+  function start() {
+    if (on) return;
+    on = true;
+    try {
+      const ctx = getCtx(); // bgmBtn クリック時に ensureAudio 済み
+      master = ctx.createGain();
+      master.gain.value = 0.72;
+      master.connect(ctx.destination);
+      loopAt = ctx.currentTime + 0.2; // resume 直後の余裕を増やす
+      scheduleLoop();
+    } catch(e) {
+      on = false; // 失敗時は状態リセット
+      console.warn('BGM start error:', e);
+    }
+  }
+
+  function stop() {
+    on = false;
+    clearTimeout(timer);
+    if (master) {
+      const g = master; master = null;
+      g.gain.setTargetAtTime(0, getCtx().currentTime, 0.25);
+      setTimeout(() => { try { g.disconnect(); } catch(_) {} }, 700);
+    }
+  }
+
+  return { start, stop, isOn: () => on };
+})();
+
+bgmBtn.addEventListener('click', async () => {
+  await ensureAudio(); // resume 確定後に BGM を操作
+  if (BGM.isOn()) {
+    BGM.stop();
+    bgmBtn.classList.add('off');
+  } else {
+    BGM.start();
+    bgmBtn.classList.remove('off');
+  }
+});
+
+// ── モード / 配置 選択 ──────────────────────────────────
+document.querySelectorAll('#mode-select .sel-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mode-select .sel-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    totalCount = parseInt(btn.dataset.count);
+    updateBestDisplay();
+  });
+});
+document.querySelectorAll('#layout-select .sel-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#layout-select .sel-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    layoutMode = btn.dataset.layout;
+  });
+});
+
+function updateBestDisplay() {
+  const b = bests[totalCount];
+  bestValue.textContent = b !== null ? b.toFixed(2) : '--';
+}
+
+// ── ユーティリティ ─────────────────────────────────────
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ── ボタン生成 ─────────────────────────────────────────
+function createButton(n, cx, cy) {
+  const R   = 26;
+  const btn = document.createElement('button');
+  btn.className = 'num-btn';
+  btn.textContent = n;
+  btn.dataset.num = n;
+  btn.style.left  = (cx - R) + 'px';
+  btn.style.top   = (cy - R) + 'px';
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); handleTap(btn, n); });
+  playArea.appendChild(btn);
+}
+
+function placeGrid(count) {
+  const cols  = Math.round(Math.sqrt(count));
+  const rows  = Math.ceil(count / cols);
+  const W     = playArea.clientWidth;
+  const H     = playArea.clientHeight;
+  const cellW = W / cols;
+  const cellH = H / rows;
+  shuffle(Array.from({ length: count }, (_, i) => i + 1)).forEach((n, idx) => {
+    createButton(n, cellW * (idx % cols + 0.5), cellH * (Math.floor(idx / cols) + 0.5));
+  });
+}
+
+function placeRandom(count) {
+  const cols  = Math.round(Math.sqrt(count));
+  const rows  = Math.ceil(count / cols);
+  const W     = playArea.clientWidth;
+  const H     = playArea.clientHeight;
+  const cellW = W / cols;
+  const cellH = H / rows;
+  const R = 26, PAD = 4;
+  shuffle(Array.from({ length: count }, (_, i) => i)).forEach((s, idx) => {
+    const col = s % cols, row = Math.floor(s / cols);
+    const minX = cellW * col + R + PAD, maxX = cellW * (col + 1) - R - PAD;
+    const minY = cellH * row + R + PAD, maxY = cellH * (row + 1) - R - PAD;
+    createButton(idx + 1,
+      minX + Math.random() * Math.max(0, maxX - minX),
+      minY + Math.random() * Math.max(0, maxY - minY));
+  });
+}
+
+function placeNumbers(count) {
+  playArea.querySelectorAll('.num-btn').forEach(b => b.remove());
+  if (layoutMode === 'grid') placeGrid(count);
+  else                       placeRandom(count);
+}
+
+// ── タイマー ───────────────────────────────────────────
+function startTimer() {
+  startTime = performance.now();
+  function tick() {
+    timerDisplay.textContent = ((performance.now() - startTime) / 1000).toFixed(2);
+    timerRAF = requestAnimationFrame(tick);
+  }
+  timerRAF = requestAnimationFrame(tick);
+}
+function stopTimer() {
+  cancelAnimationFrame(timerRAF);
+  return (performance.now() - startTime) / 1000;
+}
+
+// ── タップ処理 ─────────────────────────────────────────
+function handleTap(btn, n) {
+  if (!playing) return;
+  if (n === current) {
+    sfx.correct();
+    btn.classList.add('correct');
+    showHitEffect(btn);
+    current++;
+    updateHUD();
+    btn.addEventListener('animationend', () => btn.remove(), { once: true });
+    if (current > totalCount) finishGame();
+  } else {
+    if (btn.classList.contains('wrong')) return;
+    sfx.wrong();
+    btn.classList.add('wrong');
+    setTimeout(() => btn.classList.remove('wrong'), 380);
+  }
+}
+
+function showHitEffect(btn) {
+  const r  = btn.getBoundingClientRect();
+  const ar = playArea.getBoundingClientRect();
+  const fx = document.createElement('div');
+  fx.className = 'hit-effect';
+  fx.textContent = '✓';
+  fx.style.left = (r.left - ar.left + r.width  / 2 - 12) + 'px';
+  fx.style.top  = (r.top  - ar.top  - 10) + 'px';
+  playArea.appendChild(fx);
+  fx.addEventListener('animationend', () => fx.remove(), { once: true });
+}
+
+function updateHUD() {
+  nextNumber.textContent  = current <= totalCount ? current : '--';
+  progressBar.style.width = ((current - 1) / totalCount * 100) + '%';
+}
+
+// ── ゲーム終了 ─────────────────────────────────────────
+function finishGame() {
+  playing = false;
+  const elapsed = stopTimer();
+  timerDisplay.textContent = elapsed.toFixed(2);
+  sfx.finish();
+
+  const isNewBest = bests[totalCount] === null || elapsed < bests[totalCount];
+  if (isNewBest) bests[totalCount] = elapsed;
+  updateBestDisplay();
+
+  overlayTitle.textContent = '完了！';
+  const bestHtml = isNewBest ? '<span class="new-best">★ ベスト更新！</span>' : '';
+  overlayResult.innerHTML  = `<span class="result-time">${elapsed.toFixed(2)}秒</span>${bestHtml}`;
+  startBtn.textContent     = 'もう一度';
+  overlay.classList.remove('hidden');
+}
+
+// ── カウントダウン ─────────────────────────────────────
+function runCountdown(cb) {
+  const steps = ['3', '2', '1', 'GO'];
+  let i = 0;
+  function next() {
+    if (i >= steps.length) { cb(); return; }
+    steps[i] === 'GO' ? sfx.go() : sfx.tick();
+    countdownEl.textContent = steps[i];
+    countdownEl.classList.remove('show');
+    void countdownEl.offsetWidth;
+    countdownEl.classList.add('show');
+    countdownEl.addEventListener('animationend', () => { i++; setTimeout(next, 50); }, { once: true });
+  }
+  next();
+}
+
+// ── ゲーム開始 ─────────────────────────────────────────
+async function startGame() {
+  if (starting || playing) return;
+  starting = true;
+  startBtn.disabled = true;
+  await ensureAudio(); // resume 完了を待ってからカウントダウン・SFX を開始
+
+  overlay.classList.add('hidden');
+  current = 1;
+  progressBar.style.width  = '0%';
+  nextNumber.textContent   = '1';
+  timerDisplay.textContent = '0.00';
+
+  placeNumbers(totalCount);
+  playArea.querySelectorAll('.num-btn').forEach(b => { b.style.opacity = '.25'; });
+
+  runCountdown(() => {
+    playArea.querySelectorAll('.num-btn').forEach(b => { b.style.opacity = ''; });
+    starting        = false;
+    startBtn.disabled = false;
+    playing         = true;
+    startTimer();
+  });
+}
+
+startBtn.addEventListener('click', startGame);
+
+// リサイズ: playing/starting 中は無視
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (playing || starting) return;
+  }, 300);
+});
+</script>
+</body>
+</html>
